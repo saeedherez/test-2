@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>I Love You </title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #040108
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #ffb1c4;
+      font: 12px Arial, sans-serif;
+      letter-spacing: .08em;
+      opacity: .65;
+      text-align: center;
+      pointer-events: none
+    }
+
+    button {
+      position: fixed;
+      right: 18px;
+      top: 18px;
+      border: 1px solid #ff7198;
+      border-radius: 999px;
+      background: #4a0926bb;
+      color: #ffe2ea;
+      padding: 8px 14px;
+      font: 600 13px Arial, sans-serif;
+      cursor: pointer
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+  <button id="replay">Replay ♥</button>
+  <div class="hint">Move the mouse · Tap / click for a ripple · F11 for full screen</div>
+  <script>
+    (() => {
+      const phrases = `
+    मैं तुमसे प्यार करता हूँ|त्वयि स्निह्यामि|আমি তোমাকে ভালোবাসি|நான் உன்னை காதலிக்கிறேன்|నేను నిన్ను ప్రేమిస్తున్నాను|मी तुझ्यावर प्रेम करतो|હું તને પ્રેમ કરું છું|ਮੈਂ ਤੈਨੂੰ ਪਿਆਰ ਕਰਦਾ ਹਾਂ|ನಾನು ನಿನ್ನನ್ನು ಪ್ರೀತಿಸುತ್ತೇನೆ|ഞാൻ നിന്നെ സ്നേഹിക്കുന്നു|میں تم سے محبت کرتا ہوں|म तिमीलाई माया गर्छु|මම ඔයාට ආදරෙයි|मूँ तव्हां खे प्यार थो करियां|我爱你|我愛你|愛してる|大好きだよ|사랑해|사랑해요|ฉันรักเธอ|รักนะ|Anh yêu em|Em yêu anh|Aku cinta kamu|Saya cinta padamu|Mahal kita|ချစ်တယ်|ខ្ញុំស្រឡាញ់អ្នក|ຂ້ອຍຮັກເຈົ້າ|Би чамд хайртай|I love you|Te amo|Te quiero|Je t'aime|Ti amo|Eu te amo|Amo-te|Ich liebe dich|Ik hou van jou|Jag älskar dig|Jeg elsker deg|Jeg elsker dig|Ég elska þig|Minä rakastan sinua|Rakastan sinua|Ma armastan sind|Szeretlek|Kocham cię|Miluji tě|Ľúbim ťa|Я тебя люблю|Я тебе кохаю|Кохаю тебе|Я цябе кахаю|Обичам те|Волим те|Volim te|Ljubim te|Те сакам|Σ' αγαπώ|Te iubesc|Të dua|Myliu tave|Es tevi mīlu|Gráím thú|Tha gaol agam ort|Rwy'n dy garu di|Maite zaitut|T'estimo|Quérote|Mi amas vin|Seni seviyorum|Səni sevirəm|Men seni sevaman|Мен сені сүйемін|أحبك|أنا أحبك|دوستت دارم|عاشقتم|אני אוהב אותך|მიყვარხარ|Ես քեզ սիրում եմ|Սիրում եմ քեզ|Ez ji te hez dikim|Nakupenda|Ngiyakuthanda|Ndiyakuthanda|Mo nifẹ rẹ|Ahụrụ m gị n'anya|Ina son ku|እወድሻለሁ|Waan ku jeclahay|Ek het jou lief|Tiako ianao|Aloha Au Ia 'Oe|Aroha ahau ki a koe`
+        .trim().split('|');
+      const compact = ['我爱你', '사랑해', '愛してる', 'أحبك', 'รักนะ', 'Te amo', 'Ti amo', 'Të dua', 'Amo-te', 'Gráím thú', 'Quérote', 'T\'estimo', 'Волим те', 'Volim te', 'Σ\' αγαπώ', 'Szeretlek', 'Nakupenda', 'Mahal kita', 'Je t\'aime'];
+      const palette = ['#520229', '#ad052d', '#f20f3d', '#ff3d67', '#ff8cab', '#ffe0e8'];
+      const bg = '#040108', canvas = document.querySelector('#canvas'), ctx = canvas.getContext('2d'), replay = document.querySelector('#replay');
+      let width = 0, height = 0, dpr = 1, layout = [], active = [], settled = [], waves = [], mouse = { x: -9999, y: -9999 }, started = performance.now(), raf = 0;
+      const BUILD_MS = 6800, SPAWN_MS = 540;
+      const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+      const mix = (a, b, t) => { const A = a.match(/\w\w/g).map(x => parseInt(x, 16)), B = b.match(/\w\w/g).map(x => parseInt(x, 16)); return '#' + A.map((x, i) => Math.round(x + (B[i] - x) * clamp(t)).toString(16).padStart(2, '0')).join('') };
+      const shuffle = a => a.map(v => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+      function heart(a, scale) { return [16 * Math.sin(a) ** 3 * scale, -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) * scale] }
+      function spans(y, scale) {
+        const hit = []; let before = heart(0, scale);
+        for (let i = 1; i <= 960; i++) { const after = heart(Math.PI * 2 * i / 960, scale), [x1, y1] = before, [x2, y2] = after; if ((y1 <= y && y < y2) || (y2 <= y && y < y1)) hit.push(x1 + (y - y1) * (x2 - x1) / (y2 - y1)); before = after }
+        hit.sort((a, b) => a - b); const answer = []; for (let i = 0; i + 1 < hit.length; i += 2)if (hit[i + 1] - hit[i] > 7) answer.push([hit[i], hit[i + 1]]); return answer;
+      }
+      function overlap(a, b) { const out = []; for (const x of a) for (const y of b) { const lo = Math.max(x[0], y[0]), hi = Math.min(x[1], y[1]); if (hi - lo > 8) out.push([lo, hi]) } return out }
+      function setFont(size) { ctx.font = `bold ${size}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle' }
+      function resize() { dpr = devicePixelRatio || 1; width = innerWidth; height = innerHeight; canvas.width = width * dpr; canvas.height = height * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); build() }
+      function build() {
+        if (raf) cancelAnimationFrame(raf);
+        const scale = Math.min(width, height) / 34.5, cx = width / 2, cy = height / 2 - height * .025, rowH = 17;
+        let cycle = shuffle(phrases), index = 0; layout = []; active = []; settled = []; waves = []; started = performance.now();
+        for (let y = -12 * scale; y < 17 * scale; y += rowH) {
+          const safe = overlap(spans(y - rowH * .34, scale), spans(y + rowH * .34, scale));
+          for (const [left, right] of safe) {
+            let cursor = left + 3;
+            while (cursor < right - 10) {
+              const rad = Math.hypot((cursor + 30) / (16 * scale), y / (16.5 * scale)); const sizes = rad < .46 ? [13, 14, 15, 16, 12, 11, 10, 9] : [11, 10, 9, 8, 7];
+              let fit = null;
+              for (let tries = 0; tries < Math.min(phrases.length, 14); tries++) { const text = cycle[index++ % cycle.length], size = sizes[Math.floor(Math.random() * sizes.length)]; setFont(size); const w = ctx.measureText(text).width; if (w <= right - cursor - 3) { fit = { text, size, w }; break } }
+              if (!fit) for (let tries = 0; tries < 12; tries++) { const text = compact[Math.floor(Math.random() * compact.length)], size = [8, 7, 6, 5][Math.floor(Math.random() * 4)]; setFont(size); const w = ctx.measureText(text).width; if (w <= right - cursor - 3) { fit = { text, size, w }; break } }
+              if (!fit) break;
+              const x = cursor + fit.w / 2, radius = Math.min(1, Math.hypot(x / (16 * scale), y / (16.5 * scale)));
+              layout.push({ x: cx + x, y: cy + y, text: fit.text, size: fit.size, color: palette[Math.floor(Math.random() * palette.length)], radius, angle: Math.atan2(y, x), born: 0, shimmer: 0 }); cursor += fit.w + (fit.size >= 11 ? 6 : 4);
+            }
+          }
+        }
+        layout.sort((a, b) => b.radius - a.radius); raf = requestAnimationFrame(draw);
+      }
+      function pulse(t) { const c = (t % .86) / .86; return Math.exp(-(((c - .14) / .045) ** 2)) + .6 * Math.exp(-(((c - .31) / .06) ** 2)) }
+      function background(cx, cy, scale) {
+        for (let i = 26; i; i--) { const k = i / 26; ctx.fillStyle = mix(bg, '#290014', (1 - k) ** 1.9); ctx.beginPath(); ctx.ellipse(cx, cy, 18.5 * scale * k, 17 * scale * k, 0, 0, Math.PI * 2); ctx.fill() }
+      }
+      function draw(now) {
+        const seconds = (now - started) / 1000, beat = pulse(seconds), scale = Math.min(width, height) / 34.5, cx = width / 2, cy = height / 2 - height * .025;
+        ctx.clearRect(0, 0, width, height); background(cx, cy, scale);
+        // glowing animated rim
+        for (let i = 0; i < 220; i++) { const a = Math.PI * 2 * i / 220 + seconds * (.12 + (i % 6) * .02), [x, y] = heart(a, scale); const nx = x / (16 * scale), ny = y / (16.5 * scale), push = beat * 6 + Math.sin(seconds * 3 + i) * 2.5; ctx.fillStyle = mix(bg, palette[2 + i % 4], .3 + beat * .48); ctx.beginPath(); ctx.arc(cx + x + nx * push, cy + y + ny * push, 1.2 + (i % 4) * .3 + beat, 0, Math.PI * 2); ctx.fill() }
+        const target = Math.min(layout.length, Math.floor((now - started) / BUILD_MS * layout.length));
+        while (active.length + settled.length < target) { const word = layout[active.length + settled.length]; word.born = now; active.push(word) }
+        for (let i = active.length - 1; i >= 0; i--) { if (now - active[i].born >= SPAWN_MS) { settled.push(active[i]); active.splice(i, 1) } }
+        const render = (word, progress = 1) => {
+          const slide = (1 - progress), offset = (55 + 35 * word.radius), a = word.angle + .65;
+          let x = word.x + Math.cos(a) * offset * slide, y = word.y + Math.sin(a) * offset * slide;
+          if (progress === 1) { const move = beat * (3 + word.radius * 6); x += Math.cos(word.angle) * move; y += Math.sin(word.angle) * move; const dx = x - mouse.x, dy = y - mouse.y, d = Math.hypot(dx, dy); if (d > 0 && d < 115) { const f = (1 - d / 115) ** 2; x += dx / d * f * 18; y += dy / d * f * 18; word.shimmer = Math.max(word.shimmer, f * .8) } for (const wave of waves) { const dx2 = x - wave.x, dy2 = y - wave.y, d2 = Math.hypot(dx2, dy2) || .001, band = Math.abs(d2 - wave.r); if (band < 48) { const f = (1 - band / 48) ** 2 * (1 - wave.r / wave.max); x += dx2 / d2 * f * 16; y += dy2 / d2 * f * 16; word.shimmer = Math.max(word.shimmer, f * .95) } } word.shimmer *= .88; if (Math.random() < .003) word.shimmer = .8 }
+          const glow = progress === 1 ? clamp(beat * .26 + word.shimmer) : clamp(progress * 1.35), flash = word.shimmer > .25 ? '#ffe0b8' : '#fff0f4'; setFont(word.size); ctx.fillStyle = mix(bg, word.color, progress === 1 ? .22 : glow * .2); ctx.fillText(word.text, x + 2, y + 3); ctx.fillStyle = progress === 1 ? mix(word.color, flash, glow) : mix(bg, word.color, glow); ctx.fillText(word.text, x, y);
+        };
+        settled.forEach(w => render(w)); active.forEach(w => render(w, clamp((now - w.born) / SPAWN_MS)));
+        waves.forEach(w => w.r += 18); waves = waves.filter(w => w.r < w.max);
+        if (now - started > BUILD_MS + SPAWN_MS) replay.style.opacity = 1;
+        raf = requestAnimationFrame(draw);
+      }
+      canvas.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top } });
+      canvas.addEventListener('pointerleave', () => mouse = { x: -9999, y: -9999 });
+      canvas.addEventListener('pointerdown', e => { const r = canvas.getBoundingClientRect(); waves.push({ x: e.clientX - r.left, y: e.clientY - r.top, r: 0, max: Math.min(width, height) * .75 }) });
+      replay.onclick = () => { replay.style.opacity = 0; build() };
+      addEventListener('resize', () => { clearTimeout(window.resizer); window.resizer = setTimeout(resize, 160) });
+      addEventListener('keydown', e => { if (e.key === 'F11') { e.preventDefault(); document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen() } });
+      resize();
+    })();
+  </script>
+</body>
+
+</html>
